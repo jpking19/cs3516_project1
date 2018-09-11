@@ -13,11 +13,10 @@ port_number: which port on which to contact the server
 options: (-p) prints the RTT for accessing the URL on the terminal before server’s
 response
 
-Ex: ./http_client [-options] server_url port_number 
-Ex: ./http_client www.google.com 80 
-Ex: ./http_client cccworks4.wpi.edu/index.html 7890 
+Ex: ./http_client [-options] server_url port_number
+Ex: ./http_client www.google.com 80
+Ex: ./http_client ccc.wpi.edu/TMGD.html 9990
 
 To run the HTTP Server:
 
 Should start before the client.
-
