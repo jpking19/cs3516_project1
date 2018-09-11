@@ -12,7 +12,7 @@
 #include <errno.h>
 
 // Define receive buffer size
-#define RECEIVEBUFFER 4000
+#define RECEIVEBUFFER 3000
 
 // Error Handling function
 void DieWithError(char *errorString) {
@@ -23,7 +23,7 @@ void DieWithError(char *errorString) {
 
 int main(int argc,char* argv[])
 {
-	int sock, returnVal; // Socket descriptor
+	int sock, returnVal, bytesReceived; // Socket descriptor
 	char *serverURL, *serverPort; // Server URL and Port
 	char *path, *host;
 	char request[1024], response[RECEIVEBUFFER]; // GET request and response
@@ -107,18 +107,28 @@ int main(int argc,char* argv[])
 	}
 
 	// Receive response back from server
-	//TODO possibly fix this
-	int byte_count = recv(sock, &response, sizeof(response), 0);
-	response[byte_count] = 0; // need to add the null terminator
+	memset(response, 0, sizeof(response));
+	bytesReceived = 0;
 
-	//TODO -p option
+	while((bytesReceived = read(sock, response, RECEIVEBUFFER - 1)) > 0) {
+		response[bytesReceived] = 0;
+		printf("%s", response); // Prints part of response from the server
+
+		if(bytesReceived < 0) {
+			DieWithError("Could not read server response");
+		}
+	}
+	//TODO possibly fix this
+	//int byte_count = recv(sock, &response, sizeof(response), 0);
+	//response[byte_count] = 0; // need to add the null terminator
+
 	if (pFlag) {
 		RTT = ((finish.tv_sec - start.tv_sec) * 1000000LL) + (finish.tv_usec - start.tv_usec);
-		printf("RTT for accessing URL is: %ld milliseconds \n\n", RTT);
+		printf("\n\nRTT for accessing URL is: %ld milliseconds \n", RTT);
 	}
 
 	//TODO write this to a file for submission and print out
-	printf("%s\n\n", response);
+	//printf("%s\n\n", response);
 
 	// Close socket
 	close(sock);
