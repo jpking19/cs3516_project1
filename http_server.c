@@ -9,10 +9,14 @@
 #include <unistd.h>
 #include <pthread.h>
 
+// Define max queue size
 #define QUEUE 5
-#define RCVBUFSIZE 1028
+// Define receive buffer size
+#define RECEIVEBUFFER 1028
 
 int openConnection(char* port);
+
+// Error Handling function
 void DieWithErrors(char *errorMessage, int errnoNum){
   printf(errorMessage, "/n");
   printf("Errno # %d : %s/n", errnoNum, strerror(errnoNum));
@@ -20,171 +24,175 @@ void DieWithErrors(char *errorMessage, int errnoNum){
 }
 
 
-int main(int argc, char **argv){
-  int newSocket, lstnSocket = 0;
-  int bytes, bytesSent;
+int main(int argc, char **argv) {
+  int newSock, listenSock = 0; // Socket descriptors
+  int bytes, bytesSent, readResult;
   struct sockaddr_storage theirAddr;
   socklen_t addr_size;
-  int readResult;
-  char rcvBuffer[RCVBUFSIZE], rqstMethod[6], rqstPath[100], rqstHttp[10], errorMessage[50];
+  char rcvBuffer[RECEIVEBUFFER], rqstMethod[6], rqstPath[100], rqstHttp[10], errorMessage[50];
   FILE *file;
   long fileSize;
 
-  //Checks to see if user gave correct number of command line arguments
-  if(argc != 2)
-    DieWithErrors("Usage: ./server <port>", 8);
+  // Check for correct number of arguments
+  if (argc != 2) {
+        DieWithErrors("Wrong number of arguments", 5);
+  }
 
-    lstnSocket = openConnection(argv[1]);
+  listenSock = openConnection(argv[1]);
 
-    if(listen(lstnSocket, 5) < 0){
-      DieWithErrors("Error Listening.", errno);
+  if(listen(listenSock, 5) < 0){
+    DieWithErrors("Error Listening.", errno);
+  }
+
+  printf("Waiting for connection now.\n");
+
+  // Enter infinite loop
+  while (1) {
+    // Accept the next connection
+    newSock = accept(listenSock, (struct sockaddr *) &theirAddr, &addr_size);
+
+    printf("%d \n", newSock);
+
+    if (newSock < 0) {
+      DieWithErrors("Could not accept connection", errno);
     }
 
+    // Start new process
+    if (fork() == 0) {
+      printf("Accepted Connection\n");
 
-    printf("Waiting for connection now.\n");
+      memset(rcvBuffer, 0, sizeof(rcvBuffer));
 
-    while(1){
-      //addrInSize = sizeof theirAddr;
-      newSocket = accept(lstnSocket, (struct sockaddr *) &theirAddr, &addr_size);
-      printf("%d \n", newSocket);
-      if(newSocket < 0)
-        DieWithErrors("Error accepting connection", errno);
-      if (fork() == 0) {
+      while ((readResult = read(newSock, rcvBuffer, sizeof(rcvBuffer))) > 0) {
+        rcvBuffer[readResult] = 0;
+        printf("%s", rcvBuffer);
 
-        printf("Accepted Connection\n");
-
-
-        memset(rcvBuffer, 0, sizeof(rcvBuffer));
-
-        while((readResult = read(newSocket, rcvBuffer, sizeof(rcvBuffer))) > 0){
-          rcvBuffer[readResult] = 0;
-          printf("%s", rcvBuffer);
-          if(strstr(rcvBuffer, "\r\n"))
-            break;
+        // Break when you hit "\r\n"
+        if (strstr(rcvBuffer, "\r\n")) {
+          break;
         }
+      }
 
-        if(readResult < 0)
-          DieWithErrors("Error reading host message", errno);
+      if (readResult < 0) {
+        DieWithErrors("Could not read host request", errno);
+      }
 
-          printf("\n");
-          //Reading the HTTP Request Host sent
-          //We know the GET message goes GET (some path) HTTP/1.1
-          sscanf(rcvBuffer, "%s %s %s", rqstMethod, rqstPath, rqstHttp);
-          printf("rcvBuffer is %s", rcvBuffer);
+      // Read the request from the host
+      sscanf(rcvBuffer, "%s %s %s", rqstMethod, rqstPath, rqstHttp);
+      // Ensure method is GET (we dont support anything else)
+      if (strcmp(rqstMethod, "GET") != 0) {
+        strcpy(errorMessage, "Expected GET method");
 
-          printf("rqstMethod %s\n", rqstMethod);
-          printf("rqstPath %s\n", rqstPath);
-          printf("rqstHttp %s\n", rqstHttp);
+        // Notify host
+        if (write(newSock, errorMessage, strlen(errorMessage)) < 0) {
+          close(newSock);
+          close(listenSock);
 
-          if(strcmp(rqstMethod, "GET") != 0){
-            printf("yeet\n");
-            strcpy(errorMessage, "Expected GET method");
-            //Write to host
-            if(write(newSocket, errorMessage, strlen(errorMessage)) < 0){
-              close(newSocket);
-              close(lstnSocket);
-              DieWithErrors("Error sending error message to host", errno);
+          DieWithErrors("Incorrectly formatted request", errno);
+        }
+      } else {
+        // Ensure the host has specified a valid path
+        if(strcmp(rqstPath, "/") == 0 || strcmp(rqstPath, "/index.html") == 0 || strcmp(rqstPath, "/TMDG.html") == 0) {
+          file = fopen("TMDG.html", "r");
+          // Open the file
+          if (file == NULL){
+            close(newSock);
+            close(listenSock);
+
+            DieWithErrors("Could not open file", 2);
+          } else {
+            // Load file and send to host
+            char okMessage[strlen("HTTP/1.1") + strlen("200 OK\n") + 1];
+            sprintf(okMessage, "%s 200 OK\n\n", rqstHttp);
+            if (write(newSock, okMessage, strlen(okMessage)) < 0) {
+              close(newSock);
+              close(listenSock);
+
+              DieWithErrors("Could not send OK Message", errno);
             }
-            }else{
-              if(strcmp(rqstPath, "/") == 0 || strcmp(rqstPath, "/index.html") == 0 || strcmp(rqstPath, "/TMDG.html") == 0){
-                printf("yeet2\n");
-                file = fopen("TMDG.html", "r");
-                if (file == NULL){
-                  close(newSocket);
-                  close(lstnSocket);
-                  DieWithErrors("Error opening file", 2);
-                }else{
-                  printf("yeet3\n");
-                  //File is open and ready to transmit. Load file and send it.
-                char okMessage[strlen("HTTP/1.1") + strlen("200 OK\n") + 1];
-                sprintf(okMessage, "%s 200 OK\n\n", rqstHttp);
-                if(write(newSocket, okMessage, strlen(okMessage)) < 0){
-                  close(newSocket);
-                  close(lstnSocket);
-                  DieWithErrors("Error sending OK Message", errno);
-                }
 
-              //Read the file before sending it out
-              fseek(file, 0, SEEK_END);
-              fileSize= ftell(file);
-              fseek(file, 0, SEEK_SET);
+            //Read the file before sending it out
+            fseek(file, 0, SEEK_END);
+            fileSize= ftell(file);
+            fseek(file, 0, SEEK_SET);
 
-              char *sendBuffer = malloc(fileSize * sizeof(char) + 1);
-              memset(sendBuffer, 0, fileSize);
+            char *sendBuffer = malloc(fileSize * sizeof(char) + 1);
+            memset(sendBuffer, 0, fileSize);
 
-              fread(sendBuffer, fileSize, 1, file);
-              fclose(file);
-              sendBuffer[fileSize] = 0;
+            fread(sendBuffer, fileSize, 1, file);
+            fclose(file);
+            sendBuffer[fileSize] = 0;
 
-              bytesSent = 0;
-              while(fileSize>0){
-                if((bytes = write(newSocket, sendBuffer, fileSize-bytesSent)) < 0){
-                  close(newSocket);
-                  close(lstnSocket);
-                  DieWithErrors("Error writing to socket", errno);
-                }if(bytes == 0){
-                  break;
-                }else{
-                  bytesSent+=bytes;
-                  continue;
-                }
+            bytesSent = 0;
+            while (fileSize>0) {
+              if ((bytes = write(newSock, sendBuffer, fileSize-bytesSent)) < 0) {
+                close(newSock);
+                close(listenSock);
+
+                DieWithErrors("Could not write to socket", errno);
               }
-              free(sendBuffer);
+              if (bytes == 0) {
+                break;
+              } else {
+                bytesSent+=bytes;
+                continue;
+              }
             }
+            free(sendBuffer);
           }
         }
       }
-      close(newSocket);
     }
-    //We're done listening so the server will close
-    close(lstnSocket);
+    close(newSock);
+  }
+  // Close server
+  close(listenSock);
 }
 
-  int openConnection(char* port){
+int openConnection(char* port) {
+  struct addrinfo info;
+  struct addrinfo *serverInfo;
+  struct addrinfo *results;
+  int listenSock, returnVal;
+  int yes = 1;
 
-    struct addrinfo myInfo;
-    struct addrinfo *thisServer;
-    struct addrinfo *resolvedServer;
-    int listenSocket;
-    int yes = 1;
+  // Create info structure (setting aside memory too)
+	memset(&info, 0, sizeof(struct addrinfo)); // Zero out structure
+	info.ai_family = AF_UNSPEC;
+	info.ai_socktype = SOCK_STREAM;
+	info.ai_flags = AI_PASSIVE;
 
+  // Resolve URL to IP address
+	if ((returnVal = getaddrinfo(NULL, port, &info, &results)) != 0) {
+		DieWithErrors("Could not complete 3-way handshake", errno);
+	}
 
-    memset(&myInfo, 0, sizeof(struct addrinfo)); //we are programming in C and weird things tend to happen with regards to memory so we make sure we have enough space to allocate a packet with our information
-    myInfo.ai_family = AF_UNSPEC; //we don't care whether we use IPV4 or 6
-    myInfo.ai_socktype = SOCK_STREAM; //we're using TCP
-    myInfo.ai_flags = AI_PASSIVE; //automatically fills in our IP
+  // Iterate through results until we connect to something valid
+  for (serverInfo = results; serverInfo != NULL; serverInfo = serverInfo->ai_next) {
+     // Create socket
+     listenSock = socket(serverInfo->ai_family, serverInfo->ai_socktype, serverInfo->ai_protocol);
 
-    if (getaddrinfo(NULL, port, &myInfo, &resolvedServer) != 0){
-      DieWithErrors("Error connecting with Server for 3-way handshake", errno);
-    }
-
-      /* Go through all the results getaddrinfo returned until we find something valid we can connect to */
-    for(thisServer = resolvedServer; thisServer != NULL; thisServer = thisServer->ai_next){
-     /*First try to create a socket with the information
-     socket(ipv4 or 6, stream or datagram, protocol)*/
-     listenSocket = socket(thisServer->ai_family, thisServer->ai_socktype, thisServer->ai_protocol);
-
-     if(listenSocket < 0){
-       printf("Error creating client socket. Errno #%d", errno);
-       continue;
+     if ((listenSock = socket(serverInfo->ai_family, serverInfo->ai_socktype, serverInfo->ai_protocol)) < 0) {
+       printf("Could not create client socket");
+ 			 continue; // Failure, loop again
      }
 
-     //*** THIS IS WHERE NEW SERVER CODE STARTS***
-     //This takes a port and reuses it for this program in case that port is busy
-     if(setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1)
-       DieWithErrors("Error reusing a socket.", errno);
+     if (setsockopt(listenSock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
+       DieWithErrors("Could not reuse a socket", errno);
+     }
 
-     if(bind(listenSocket, thisServer->ai_addr, thisServer->ai_addrlen) < 0){
-       printf("Binding Error. Errno # %d\n", errno);
-       close(listenSocket);
+     if (bind(listenSock, serverInfo->ai_addr, serverInfo->ai_addrlen) < 0) {
+       printf("Could not bind");
+       close(listenSock);
        continue;
      }
      break;
    }
 
-   if(thisServer == NULL)
+   if (serverInfo == NULL) {
      DieWithErrors("Error binding.", errno);
-   printf("The listen socket is %d\n", listenSocket);
+   }
+   printf("The listen socket is %d\n", listenSock);
 
-   return listenSocket;
+   return listenSock;
 }

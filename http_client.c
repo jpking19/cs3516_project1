@@ -21,12 +21,11 @@ void DieWithError(char *errorString, int errnoNum) {
 	exit(1);
 }
 
-int main(int argc,char* argv[])
-{
+int main(int argc,char* argv[]) {
 	int sock, returnVal, bytesReceived; // Socket descriptor
 	char *serverURL, *serverPort; // Server URL and Port
-	char *path, *host, *pathPointer;
-	char request[1024], response[RECEIVEBUFFER]; // GET request and response
+	char *host, *pathPointer;
+	char request[1024], response[RECEIVEBUFFER], path[1024]; // GET request and response (and path to build it)
 	struct addrinfo info, *serverInfo, *results; // Used in getaddrinfo()
 	// -p variables
 	int pFlag = 0; // Whether or not the -p option was included (default 0)
@@ -49,16 +48,13 @@ int main(int argc,char* argv[])
 
 	// Split given URL into path and host
 	pathPointer = strstr(serverURL, "/");
-	if (path == NULL) {
+	if (!pathPointer) {
 		strcpy(path, "/");
 		host = serverURL;
 	} else {
 		strcpy(path, pathPointer);
 		host = strtok(serverURL, "/");
 	}
-
-	printf("%s  ", host);
-	printf("%s", path);
 
 	// Create info structure (setting aside memory too)
 	memset(&info, 0, sizeof(struct addrinfo)); // Zero out structure
@@ -75,7 +71,7 @@ int main(int argc,char* argv[])
 	for (serverInfo = results; serverInfo != NULL; serverInfo = serverInfo->ai_next) {
 		// Create socket
 		if ((sock = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-			printf("Could not create client socket", errno);
+			printf("Could not create client socket");
 			continue; // Failure, loop again
 		}
 
@@ -103,10 +99,10 @@ int main(int argc,char* argv[])
 	}
 
 	// Concatenate a valid HTTP/1.1 GET request for the supplied URL
-	sprintf(request, "GET %s \r\nHost: %s\r\nConnection: close\r\n\r\n", path, host);
+	sprintf(request, "GET %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", path, host);
 
 	// Print get message
-	printf("%s\n", request);
+	printf("\nGet Request:\n%s\n", request);
 
 	// Send GET request
 	if (send(sock, request, strlen(request), 0) < 0) {
@@ -125,6 +121,8 @@ int main(int argc,char* argv[])
 			DieWithError("Could not read server response", errno);
 		}
 	}
+
+
 
 	// Calculate and print out RTT if required
 	if (pFlag) {

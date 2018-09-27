@@ -1,13 +1,21 @@
 # cs3516_project1
 **Socket Programming**
 
+Jason King
+
 First project in CS3516 Computer Networks
 
 Implementation of an HTTP client and server running a simplified
 version of the HTTP/1.1 protocol.
 
+
 To run the HTTP client:
 
+First, "Make all"
+
+Then,
+
+Arguments:
 server_url: (http://www.server.com/path/to/file) or an IP address
 port_number: which port on which to contact the server
 options: (-p) prints the RTT for accessing the URL on the terminal before server’s
@@ -17,6 +25,15 @@ Ex: ./http_client [-options] server_url port_number
 Ex: ./http_client www.google.com 80
 Ex: ./http_client ccc.wpi.edu/TMGD.html 9990
 
+
 To run the HTTP Server:
 
-Should start before the client.
+Arguments:
+port_number: port on which to start the server
+
+Ex: ./http_server 9980
+
+Then, run client with same port_number:
+
+Ex: ./http_client -p ccc.wpi.edu 9980
+Ex: ./http_client -p ccc.wpi.edu/TMDG.html 9980
