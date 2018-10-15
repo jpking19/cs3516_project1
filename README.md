@@ -1,4 +1,4 @@
-## Socket Programming
+# Socket Programming
 
 Jason King
 
@@ -6,7 +6,7 @@ Implementation of an HTTP client and server running a simplified version of the 
 
 
 
-##### To run the HTTP Server:
+## To run the HTTP Server:
 
 First, "Make all"
 
@@ -24,7 +24,7 @@ Then, run "http_server"
 
 
 
-##### To run the HTTP Client:
+## To run the HTTP Client:
 
 First, "Make all" if you have not already
 
