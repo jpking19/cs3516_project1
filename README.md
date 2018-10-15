@@ -2,7 +2,7 @@
 
 Jason King
 
-Implementation of an HTTP client and server running a simplified version of the HTTP/1.1 protocol.
+Implementation of an HTTP client and server running a simplified version of the HTTP/1.1 protocol. Completed in C using the provided Unix Socket commands.
 
 
 
