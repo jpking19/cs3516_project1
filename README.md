@@ -1,11 +1,11 @@
-# # Socket Programming
+## Socket Programming
 
 Jason King
 
 Implementation of an HTTP client and server running a simplified version of the HTTP/1.1 protocol.
 
 
-# # # # # To run the HTTP Server:
+##### To run the HTTP Server:
 
 First, "Make all"
 
@@ -21,7 +21,7 @@ Then, run "http_server"
   Ex: ./http_client -p ccc.wpi.edu 9980
   Ex: ./http_client -p ccc.wpi.edu/TMDG.html 9980
 
-# # # # # To run the HTTP Client:
+##### To run the HTTP Client:
 
 First, "Make all" if you have not already
 
